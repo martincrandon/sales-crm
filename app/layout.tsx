@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL, pageMetadata } from "@/lib/seo";
+import AuthLinkBridge from "@/components/auth/auth-link-bridge";
 import ScrollToTop from "@/components/_common/scroll-to-top";
-import { SIDEBAR_WIDTH_SCRIPT } from "@/lib/sidebar";
 import "./globals.css";
 
 const geist = Geist({
@@ -17,6 +17,7 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     path: "/",
   }),
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
@@ -31,15 +32,9 @@ export default function RootLayout({
       className={geist.variable}
       suppressHydrationWarning
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `history.scrollRestoration="manual";${SIDEBAR_WIDTH_SCRIPT}`,
-          }}
-        />
-      </head>
       <body className="relative z-0 font-sans antialiased">
         <ScrollToTop />
+        <AuthLinkBridge />
         {children}
       </body>
     </html>

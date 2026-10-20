@@ -2,7 +2,9 @@ export type CsvCell = string | number;
 
 function escapeCell(cell: CsvCell) {
   let value = String(cell);
-  if (/^[=+\-@\t\r]/.test(value)) value = `'${value}`;
+  if (/^[\u0000-\u0020\u00a0\ufeff]*[=+\-@]/.test(value)) {
+    value = `'${value}`;
+  }
   if (/[",\r\n]/.test(value)) value = `"${value.replace(/"/g, '""')}"`;
   return value;
 }
