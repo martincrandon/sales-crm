@@ -14,6 +14,7 @@ import type { Company } from "@/data/companies";
 import type { ActionState } from "@/lib/action-state";
 import { formatCompanyDate } from "@/lib/companies";
 import { deleteCompany } from "@/app/actions/companies";
+import SourceRecordDetails from "@/components/_common/source-record-details";
 
 type CompanyRecordDialogProps = {
   company: Company | null;
@@ -81,6 +82,26 @@ export default function CompanyRecordDialog({
                 )}
               </dd>
             </div>
+            <div>
+              <dt className="caption-style text-subtle">Contacts</dt>
+              {company.linked_contacts.length > 0 ? (
+                <ul className="mt-2 flex flex-col gap-3">
+                  {company.linked_contacts.map((contact) => (
+                    <li key={`${contact.id}-${contact.kind}`} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className="p-style break-words">{contact.name}</span>
+                      <span className="caption-style text-subtle">
+                        {contact.kind === "current" ? "Current" : "Previous"}
+                      </span>
+                      {contact.job_title && (
+                        <span className="caption-style text-soft break-words">{contact.job_title}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <dd className="p-style text-soft mt-2">No linked contacts</dd>
+              )}
+            </div>
             <div className="caption-style text-subtle flex flex-wrap gap-x-5 gap-y-2 tabular-nums">
               <span>Created {formatCompanyDate(company.created_at)}</span>
               <span>Updated {formatCompanyDate(company.updated_at)}</span>
@@ -91,6 +112,13 @@ export default function CompanyRecordDialog({
               </p>
             )}
           </dl>
+
+          <SourceRecordDetails
+            properties={company.source_properties}
+            markdownProperties={company.source_markdown_properties}
+            body={company.source_body}
+            sourceSystem={company.source_system}
+          />
 
           <DialogFooter className="justify-between">
             <form

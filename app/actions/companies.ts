@@ -47,9 +47,6 @@ export async function saveCompany(
           .single();
 
     if (result.error) {
-      if (result.error.code === "23505") {
-        return { error: "A company with this name already exists." };
-      }
       return {
         error: "Couldn't save this company. Check the database setup and try again.",
       };
@@ -62,6 +59,7 @@ export async function saveCompany(
   }
 
   revalidatePath("/");
+  revalidatePath("/contacts");
   return { success: true };
 }
 
@@ -92,5 +90,6 @@ export async function deleteCompany(
   }
 
   revalidatePath("/");
+  revalidatePath("/contacts");
   return { success: true };
 }

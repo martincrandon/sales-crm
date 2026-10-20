@@ -55,7 +55,6 @@ export default function CompanyEditorDialog({
                 id="company-name"
                 name="name"
                 required
-                maxLength={160}
                 placeholder="Acme Inc."
                 defaultValue={company?.name ?? ""}
                 autoFocus
@@ -83,7 +82,6 @@ export default function CompanyEditorDialog({
               <Input
                 id="company-industry"
                 name="industry"
-                maxLength={120}
                 placeholder="Software"
                 defaultValue={company?.industry ?? ""}
                 className="h-10"
@@ -93,12 +91,10 @@ export default function CompanyEditorDialog({
             <Field
               label="Notes"
               htmlFor="company-notes"
-              hint="Up to 5,000 characters."
             >
               <textarea
                 id="company-notes"
                 name="notes"
-                maxLength={5000}
                 rows={5}
                 placeholder="Company context, goals, and useful details"
                 defaultValue={company?.notes ?? ""}

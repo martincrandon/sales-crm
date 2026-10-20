@@ -1,6 +1,6 @@
 # Sales CRM
 
-A private, single-user CRM starter built with Next.js 16, React 19, and Supabase. The initial slice manages company records only. Contacts, deals, activity tracking, email, and reporting are future work; the app does not show demo records or placeholder metrics.
+A private, single-user CRM built with Next.js 16, React 19, and Supabase. It manages companies, contacts, and current or previous contact-company relationships. Imported Notion properties and original page text remain available in record details, while unassigned source pages are kept in the private source archive.
 
 ## Local development
 
@@ -22,9 +22,11 @@ The app verifies the Supabase user on the server and requires a confirmed email 
 
 ## Supabase setup
 
-1. Apply [`supabase/migrations/20261020172801_create_private_crm_companies.sql`](supabase/migrations/20261020172801_create_private_crm_companies.sql) to the project. The migration creates an empty `public.companies` table, a private email allowlist, owner-scoped RLS policies, and column grants that prevent authenticated users from supplying or changing `user_id`.
-2. Keep email/password sign-in enabled. Disable public signups and anonymous sign-ins. Set the Supabase Site URL to the app origin and allow the app’s `/auth/callback` and `/auth/confirm` paths.
-3. Add the one approved address to the private allowlist using the SQL Editor. Replace the example value with the address from the server environment; do not put an owner address in this repository:
+1. Apply [`supabase/migrations/20261020180719_create_private_crm_companies.sql`](supabase/migrations/20261020180719_create_private_crm_companies.sql) to the project. This filename matches the already-applied initial migration recorded by Supabase; do not reapply it to an existing project.
+2. Review and apply [`supabase/migrations/20261020201719_add_crm_contacts_and_notion_import.sql`](supabase/migrations/20261020201719_add_crm_contacts_and_notion_import.sql). It adds owner-scoped contacts, typed current/previous links, import provenance, and a private archive for source pages. It also removes company-name uniqueness so separate imported records with the same name can coexist.
+3. Review and apply [`supabase/migrations/20261020201725_preserve_notion_markdown_and_stage_import_payload.sql`](supabase/migrations/20261020201725_preserve_notion_markdown_and_stage_import_payload.sql). It stores Markdown-export properties separately and creates a private import staging table with no application-role grants.
+4. Keep email/password sign-in enabled. Disable public signups and anonymous sign-ins. Set the Supabase Site URL to the app origin and allow the app’s `/auth/callback` and `/auth/confirm` paths.
+5. Add the one approved address to the private allowlist using the SQL Editor. Replace the example value with the address from the server environment; do not put an owner address in this repository:
 
    ```sql
    insert into private.crm_allowed_emails (email)
@@ -33,7 +35,7 @@ The app verifies the Supabase user on the server and requires a confirmed email 
    ```
 
    The table has no authenticated write policy. Make allowlist changes with an administrative database role.
-4. Dashboard invitations work with Supabase’s default email template; the app does not require custom SMTP to accept a default invitation. Supabase’s default mail service is restricted to addresses in the project organization and is rate-limited. The app consumes the default invite link’s access-token fragment, establishes the SSR cookie session, verifies the user and approved email on the server, and opens `/update-password`. It also accepts default password-recovery links that return an implicit-flow fragment. Password-reset requests made by the app continue to use the PKCE callback.
+6. Dashboard invitations work with Supabase’s default email template; the app does not require custom SMTP to accept a default invitation. Supabase’s default mail service is restricted to addresses in the project organization and is rate-limited. The app consumes the default invite link’s access-token fragment, establishes the SSR cookie session, verifies the user and approved email on the server, and opens `/update-password`. It also accepts default password-recovery links that return an implicit-flow fragment. Password-reset requests made by the app continue to use the PKCE callback.
 
    If you later choose to customize the Invite User template, this token-hash link is also supported:
 
@@ -42,7 +44,7 @@ The app verifies the Supabase user on the server and requires a confirmed email 
    ```
 
    The confirmation route accepts only `type=invite`, verifies the token, confirms the server-side approved email, and sends the user to `/update-password`. Redirect destinations are allowlisted in the app. Configure custom SMTP for branded templates or delivery to recipients outside the project organization; see [Supabase’s SMTP limits](https://supabase.com/docs/guides/auth/auth-smtp).
-5. Confirm the `public` schema is exposed to the Supabase Data API if the project has changed its default API schema settings. The migration grants `authenticated` only the company columns/actions the app needs. `private.crm_allowed_emails` is not an API schema.
+7. Confirm the `public` schema is exposed to the Supabase Data API if the project has changed its default API schema settings. The migrations grant `authenticated` only the owner-scoped columns/actions the app needs. The `private` schema is not an API schema, and the import payload staging table has no grants or RLS policies for application roles.
 
 Supabase’s default templates are compatible with the app’s invite and password-reset flows. Custom SMTP is not required to consume those links, but Supabase’s default mail restrictions apply to delivery.
 
@@ -57,6 +59,25 @@ Set the four variables from `.env.example` in the Vercel Development and Product
 - Authenticated users have no `INSERT` or `UPDATE` privilege on `user_id`; server actions accept only company fields and rely on the database default.
 - The initial database is empty. A missing allowlist seed causes RLS to return no company rows and reject writes.
 - CSV export includes only the current filtered company list and protects formula-like cell values.
+- Contacts and companies are linked through `contact_companies`; composite owner-aware foreign keys prevent cross-user links.
+- Authenticated users can read source properties and original page bodies but cannot change source metadata or import provenance through the app.
+- `/archive` shows source pages that were not assigned to a contact or company. It renders Markdown as plain text and does not interpret embedded HTML.
+
+## Preparing a Notion import
+
+The importer accepts the normalized JSON contract (`version: 1`, `source: "notion-export"`) and validates identifiers, both source-property maps, bodies, database field constraints, and relationship targets. Prepare the large import as a sequence of small, private SQL files:
+
+```bash
+node scripts/import-notion-crm.mjs --check \
+  --input /private/path/normalized-import.json --owner "$OWNER_UUID"
+node scripts/import-notion-crm.mjs --prepare \
+  --input /private/path/normalized-import.json --owner "$OWNER_UUID" \
+  --out-dir /private/path/import-artifacts
+```
+
+`--prepare` writes a private manifest listing every upload file in order, its byte size, and the separate finalization and rollback SQL paths. Each upload file contains one UTF-8 payload chunk encoded as hex, is below 20,000 bytes, and uses an idempotent insert that rejects a different value for an already-staged part. Run all upload files in manifest order through an administrative SQL session. Then run the finalization SQL once. It checks the complete part sequence, reconstructed UTF-8 byte length and checksum, expected record counts, normalized payload envelope and manifest, approved owner, and relationship targets before inserting CRM records. It reconstructs JSON as data; it does not execute uploaded payload text as SQL. The transaction skips existing `(user_id, source_system, source_id)` records without overwriting edits and deletes staging chunks only when the full import commits. A failed finalization rolls back its changes and leaves staged chunks available for retry.
+
+Keep the normalized JSON, stage SQL, stage manifest, finalization SQL, and batch-scoped rollback artifact outside the repository in a directory restricted to the owner. The SQL files contain sensitive source content, even though upload chunks are hex encoded. The application uses no service-role key or privileged database function.
 
 ## Backups
 

@@ -18,17 +18,8 @@ export function validateCompanyInput(input: {
   const notes = typeof input.notes === "string" ? input.notes.trim() : "";
 
   if (!name) return { error: "Enter a company name." };
-  if (name.length > 160) {
-    return { error: "Company names can be up to 160 characters." };
-  }
   if (website.length > 2048) {
     return { error: "Website addresses can be up to 2,048 characters." };
-  }
-  if (industry.length > 120) {
-    return { error: "Industry can be up to 120 characters." };
-  }
-  if (notes.length > 5000) {
-    return { error: "Notes can be up to 5,000 characters." };
   }
 
   let normalizedWebsite: string | null = null;
